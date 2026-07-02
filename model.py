@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import math
 
-class InputEmbeddings(nn.module) {
+class InputEmbeddings(nn.module) :
     def __init__(self, d_model: int, vocab_size: int):
         super().__init__()
         self.d_model = d_model
@@ -21,7 +21,7 @@ class InputEmbeddings(nn.module) {
 # seq_len is a maximum length of the sentence because we need to create one vector to each position
 # dropout to make model less overfit
 # d_model represents the total feature dimensionality of the Transformer model, which dictates the size of the embedding vectors passed through its layers.
-class PositionalEncoding(nn.module) {
+class PositionalEncoding(nn.module) :
     def __init__(self, d_model: int, seq_len: int, dropout: float) -> None:
         super().__init__()
         self.d_model = d_model
@@ -65,4 +65,62 @@ class PositionalEncoding(nn.module) {
         return self.dropout(x)
         
         
-}
+
+
+# We also introduce two parameters, usually called gamma(multiplicative) and beta(additive) that
+# introduce some fluctuations int he data, because maybe having all values between 0 and 1 may be
+# too restrictive for the network will learn to tune these two parameters to introduce fluctuations
+# when necessary.
+class LayerNormalization(nn.module) :
+    def __init__(self, eps: float = 1e-6) -> None:
+        super().__init__()
+        self.eps = eps
+        self.alpha = nn.Parameter(torch.ones(1))  # Multiplicative
+        self.bias = nn.Parameter(torch.zeros(1))  # Additive
+        
+    # Create a learnable parameter for affine transformation (y = gamma * x + beta)
+    def forward(self, x):
+        # Normalize over the feature dimension (last dimension)
+        mean = x.mean(dim = -1, keepdim = True) 
+        std = x.std(dim = -1, keepdim = True)   
+
+        # eps is added for numerical stability (to avoid division by zero)
+        # Apply Layer Normalization formula: (x - mean) / (std + eps)
+        return self.alpha * (x - mean) / (std + self.eps) + self.bias  
+
+
+class FeedForwardBlock(nn.module) :
+    def __init__(self, d_model: int, d_ff: int, dropout: float) -> None:
+        super().__init__()
+        self.linear_1 = nn.Linear(d_model, d_ff) # W1 and B1
+        self.dropout = nn.Dropout(dropout)
+        self.linear_2 = nn.Linear(d_ff, d_model) # W2 and B2
+
+        
+    # in the forward pass we apply the following function: FNN(x) = max(0, x W1 + B1) W2 + B2
+    def forward(self, x):
+        return self.linear_2(self.dropout(torch.relu(self.linear_1(x))))
+
+class MultiHeadAttentionBlock(nn.module) :
+    def __init__(self, d_model: int, h: int, dropout: float) -> None:
+        self.d_model = d_model
+        self.h = h
+        assert d_model % h == 0, "d_model is not divisible by h"
+        
+        self.d_k = d_model // h
+        self.w_q = nn.Linear(d_model, d_model) # wq
+        self.w_k = nn.Linear(d_model, d_model) # wk
+        self.w_v = nn.Linear(d_model, d_model) # wv
+
+        self.w_o = nn.Linear(d_model, d_model) # wo
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, q, k, v, mask) :
+        query = self.w_q(q) # (Batch, Seq_Len, d_model) --> (Batch, Seq_Len, d_model)
+        key = self.w_k(k) # (Batch, Seq_Len, d_model) --> (Batch, Seq_Len, d_model)
+        value = self.w_v(v) # (Batch, Seq_Len, d_model) --> (Batch, Seq_Len, d_model)
+
+        # (Batch, Seq_Len, d_model) --> (Batch, Seq_Len, h, d_k) --> (Batch, h, Seq_Len, d_k)
+        query = query.view(query.shape[1], query.shape[1], self.h, self.d_k).transpose(1, 2)
+        
+        
