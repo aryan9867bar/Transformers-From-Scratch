@@ -1,4 +1,4 @@
-from typing import Self
+from typing_extensions import Self
 import torch
 import torch.nn as nn
 import math
@@ -26,38 +26,38 @@ class PositionalEncoding(nn.Module) :
         super().__init__()
         self.d_model = d_model
         self.seq_len = seq_len
-        self.dropout = nn.dropout(dropout)
+        self.dropout = nn.Dropout(dropout)
         
     
-    # create a atrix of shape (seq_len, d_model) for each position
-    # compute the formula for positional; encoding: pe(pos, 2i) = sin(pos / 10000^(2i / d_model)) and pe(pos, 2i + 1) = cos(pos / 10000^(2i / d_model))
-    # save the positional encoding in a buffer and return it
+        # create a atrix of shape (seq_len, d_model) for each position
+        # compute the formula for positional; encoding: pe(pos, 2i) = sin(pos / 10000^(2i / d_model)) and pe(pos, 2i + 1) = cos(pos / 10000^(2i / d_model))
+        # save the positional encoding in a buffer and return it
 
-    # torch.zeros is a PyTorch function that returns a tensor filled entirely with the scalar value 0.  
-    pe = torch.zeros(seq_len, d_model)
+        # torch.zeros is a PyTorch function that returns a tensor filled entirely with the scalar value 0.  
+        pe = torch.zeros(seq_len, d_model)
 
-    # torch.arange is a PyTorch function that returns a tensor filled with evenly spaced values within a given interval.
-    # create a vector of shape (seq_len, 1)
-    # unsqueeze is a tensor operation that inserts a new dimension of size 1 at a specified position (axis). 
-    position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
+        # torch.arange is a PyTorch function that returns a tensor filled with evenly spaced values within a given interval.
+        # create a vector of shape (seq_len, 1)
+        # unsqueeze is a tensor operation that inserts a new dimension of size 1 at a specified position (axis). 
+        position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
 
-    # torch.exp is a PyTorch function that returns a tensor with the exponential of each element in the input tensor.
-    # torch.arange is a PyTorch function that returns a tensor filled with evenly spaced values within a given interval.
-    # torch.div is a PyTorch function that returns the element-wise division of the two input tensors.
-    # torch.mul is a PyTorch function that returns the element-wise multiplication of the two input tensors.
-    div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        # torch.exp is a PyTorch function that returns a tensor with the exponential of each element in the input tensor.
+        # torch.arange is a PyTorch function that returns a tensor filled with evenly spaced values within a given interval.
+        # torch.div is a PyTorch function that returns the element-wise division of the two input tensors.
+        # torch.mul is a PyTorch function that returns the element-wise multiplication of the two input tensors.
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
 
-    # Apply the sin to even positions
-    pe[:, 0::2] = torch.sin(position * div_term)
+        # Apply the sin to even positions
+        pe[:, 0::2] = torch.sin(position * div_term)
 
-    # Apply the cos to odd positions
-    pe[:, 1::2] = torch.cos(position * div_term)
+        # Apply the cos to odd positions
+        pe[:, 1::2] = torch.cos(position * div_term)
 
-    # Add a batch dimension
-    pe = pe.unsqueeze(0)
+        # Add a batch dimension
+        pe = pe.unsqueeze(0)
     
-    # Register the positional encoding as a buffer
-    self.register_buffer('pe', pe)
+        # Register the positional encoding as a buffer
+        self.register_buffer('pe', pe)
 
     # Forward pass - add positional encoding to input embeddings
     def forward(self, x):
@@ -103,16 +103,19 @@ class FeedForwardBlock(nn.Module) :
 
 class MultiHeadAttentionBlock(nn.Module) :
     def __init__(self, d_model: int, h: int, dropout: float) -> None:
+        super().__init__()
+
         self.d_model = d_model
         self.h = h
         assert d_model % h == 0, "d_model is not divisible by h"
         
         self.d_k = d_model // h
+
         self.w_q = nn.Linear(d_model, d_model) # wq
         self.w_k = nn.Linear(d_model, d_model) # wk
         self.w_v = nn.Linear(d_model, d_model) # wv
-
         self.w_o = nn.Linear(d_model, d_model) # wo
+
         self.dropout = nn.Dropout(dropout)
 
     @staticmethod
@@ -151,7 +154,7 @@ class MultiHeadAttentionBlock(nn.Module) :
 class ResidualConnection(nn.Module) :
     def __init__(self, dropout: float) -> None :
         super().__init__()
-        self.dropout = nn.dropout(dropout)
+        self.dropout = nn.Dropout(dropout)
         self.norm = LayerNormalization()
     
     def forward(self, x, sublayer) :
@@ -200,7 +203,7 @@ class DecoderBlock(nn.Module) :
         self.self_attention_block = self_attention_block
         self.cross_attention_block = cross_attention_block
         self.feed_forward_block = feed_forward_block
-        self.residual_connections = nn.Module([ResidualConnection(dropout) for _ in range(3)])
+        self.residual_connections = nn.ModuleList([ResidualConnection(dropout) for _ in range(3)])
 
     # src_mask is the mask that we apply to the input of the encoder
     # There are two mask: one come from encoder(src_mask) and another come from decoder(tgt_mask)
